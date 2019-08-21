@@ -1,7 +1,7 @@
 # Project Name
 
-**Author**: Your Name Goes Here
-**Version**: 1.0.0 (increment the patch/fix version number if you make more commits past your first submission)
+**Author**: Jon and John
+**Version**: 1.0.1 
 
 ## Overview
 
@@ -17,6 +17,7 @@ This does a thing.
 ## Change Log
 
 Version 1 - Started backend procedures.
+Version 1.0.1 - Refactored existing code and included backend functionality for /events.
 <!-- Use this area to document the iterative changes made to your application as each feature is successfully implemented. Use time stamps. Here's an examples:
 
 01-01-2001 4:59pm - Application now has a fully-functional express server, with a GET route for the location resource. -->
@@ -42,3 +43,15 @@ Start time: 1045
 Finish time: 1400
 
 Actual time needed to complete: 2.5hrsish.
+
+
+
+Number and name of feature: Build events back end and refactor code
+
+Estimate of time needed to complete: 3 hours
+
+Start time: 0930
+
+Finish time: 1200
+
+Actual time needed to complete: 2.5hrs
