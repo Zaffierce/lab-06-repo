@@ -1,121 +1,112 @@
-'use strict'
+'use strict';
 
-const express = require('express')
-const cors = require('cors')
+const express = require('express');
+const cors = require('cors');
+const superagent = require('superagent');
 require('dotenv').config()
 
-const app = express()
-app.use(cors())
+const app = express();
+app.use(cors());
 
 const PORT = process.env.PORT;
+const GEOCODE_API = process.env.GEOCODE_API_KEY;
+const WEATHER_API_KEY = process.env.DARK_SKY_API_API;
+const EVENTBRITE_API_KEY = process.env.EVENTBRITE_API_KEY
 
-const geoData = require('./data/geo.json')
-
-GeoConstruct.geodata = [];
-function GeoConstruct(longname, address, lat, lon) {
-  this.longname = longname;
-  this.address = address;
-  this.lat = lat;
-  this.lon = lon;
-
-  GeoConstruct.geodata.push(this);
+function Location(query, format, lat, lng) {
+  this.search_query = query;
+  this.formatted_query = format;
+  this.latitude = lat;
+  this.longitude = lng;
 }
-//for loop eventually?
-new GeoConstruct(geoData.results[0].address_components[0].long_name, geoData.results[0].formatted_address, geoData.results[0].geometry.location.lat, geoData.results[0].geometry.location.lng)
-
-
-
-DarkConstruct.darkskydata = []
-function DarkConstruct(summary, time) {
-  this.forecast = summary,
-  this.time = time
-
-  DarkConstruct.darkskydata.push(this);
-}
-
-
-app.get('/test', (req, res) => {
-  // res.send(DarkConstruct.darkskydata);
-
-  const darkSky = require('./data/darksky.json');
-
-  let weekday = new Array(7);
-  weekday[0] = "Sunday";
-  weekday[1] = "Monday";
-  weekday[2] = "Tuesday";
-  weekday[3] = "Wednesday";
-  weekday[4] = "Thursday";
-  weekday[5] = "Friday";
-  weekday[6] = "Saturday";
-
-  let month = new Array();
-  month[0] = "January";
-  month[1] = "February";
-  month[2] = "March";
-  month[3] = "April";
-  month[4] = "May";
-  month[5] = "June";
-  month[6] = "July";
-  month[7] = "August";
-  month[8] = "September";
-  month[9] = "October";
-  month[10] = "November";
-  month[11] = "December";
-
-  for (let i = 0; i < darkSky.daily.data.length; i++) {
-    let forecast = darkSky.daily.data[i].summary;
-    let time = darkSky.daily.data[i].time;
-    // var d = new Date();
-    // var n = d.getDay()
-    let newTime = new Date(time*1000) ;
-    let day = weekday[newTime.getDay()];
-    let numOfMonth = month[newTime.getMonth()]
-    //"Mon Jan 01 2001"
-    let modifiedDate = `${day}, ${numOfMonth} ${newTime.getDate()} ${newTime.getFullYear()}`
-    let constructWeather = new DarkConstruct(forecast, modifiedDate)
-    DarkConstruct.darkskydata.push(constructWeather)
-  }
-  res.send(DarkConstruct.darkskydata);
-})
-
-
 
 app.get('/location', (req, res) => {
-  try {
-    const searchQuery = req.query.data;
-    const longNameQuery = GeoConstruct.geodata[0].longname;
-    const formattedQuery = GeoConstruct.geodata[0].address;
-    const lat = GeoConstruct.geodata[0].lat;
-    const lon = GeoConstruct.geodata[0].lon;
+  //the data lives in the query
+  const query = req.query.data;
+  const urlToVisit = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${GEOCODE_API}`
+  // const geoData = require('./data/geo.json');
 
-    const formattedData = {
-      search_query: searchQuery,
-      longname_query: longNameQuery,
-      formatted_query: formattedQuery,
-      latitude: lat,
-      longitude: lon
-    }
+  // No need to store this into a variable
+  // Could also be refactored also into a function.
+  superagent.get(urlToVisit).then(responseFromSuper => {
+    // console.log('stuff', responseFromSuper.body);
+    const geoData = responseFromSuper.body
+    const specificGeoData = geoData.results[0];
 
-    res.send(formattedData)
-  } catch(error) {
+    const formatted = specificGeoData.formatted_address;
+    const lat = specificGeoData.geometry.location.lat;
+    const lng = specificGeoData.geometry.location.lng;
+
+    const newLocation = new Location(query, formatted, lat, lng)
+    res.send(newLocation)
+  }).catch(error => {
+    res.status(500).send(error.message);
     console.log(error)
-  }
+  })
 })
 
-app.get('/weather', (req, res) => {
-  try {
-    const darkSky = require('./data/darksky.json');
+app.get('/weather', getWeather)
 
-    for (let i = 0; i < darkSky.daily.data.length; i++) {
-      let forecast = darkSky.daily.data[i].summary;
-      let time = darkSky.daily.data[i].time;
-      let constructWeather = new DarkConstruct(forecast, time)
-      DarkConstruct.darkskydata.push(constructWeather)
-    }
-    res.send(DarkConstruct.darkskydata);
-  } catch (error) {
+app.get('/events', getEvents)
+
+
+
+//Requires req, res from app.get
+function getWeather(req, res) {
+  const query = req.query.data;
+  const urlToVisit = `https://api.darksky.net/forecast/${WEATHER_API_KEY}/${query.latitude},${query.longitude}`
+
+  superagent.get(urlToVisit).then(responseFromSuper => {
+    const weatherData = responseFromSuper.body
+    const specificWeatherData = weatherData.daily.data;
+    const formattedDays = specificWeatherData.map(day => new Day(day.summary, day.time));
+    res.send(formattedDays)
+
+  }).catch(error => {
+    res.status(500).send(error.message);
     console.log(error)
-  }
-})
+  })
+}
 
-app.listen(PORT, () => {console.log(`Server has been started on ${PORT}`)});
+function getEvents(req, res) {
+
+  let lastTwentyEvents = [];
+
+  const query = req.query.data;
+  const urlToVisit = `https://www.eventbriteapi.com/v3/events/search/?sort_by=date&location.latitude=${query.latitude}&location.longitude=${query.longitude}&token=${EVENTBRITE_API_KEY}`
+
+  superagent.get(urlToVisit).then(responseFromSuper => {
+    const eventData = responseFromSuper.body
+    const specificEventData = eventData.events
+
+    for (let i = 0; i < 20; i++) {
+      let url = specificEventData[i].url;
+      let name = specificEventData[i].name.text;
+      let eventDate = specificEventData[i].start.local;
+      let eventSummary = specificEventData[i].description.text;
+
+      const formattedEvents = new Event(url, name, eventDate, eventSummary);
+      lastTwentyEvents.push(formattedEvents);
+    }
+    res.send(lastTwentyEvents)
+  }).catch(error => {
+    res.status(500).send(error.message);
+    console.log(error)
+  })
+}
+
+function Day (summary, time) {
+  this.forecast = summary;
+  this.time = new Date(time * 1000).toDateString();
+}
+
+function Event (link, name, event_date, summary) {
+  this.link = link;
+  this.name = name;
+  this.event_date = event_date;
+  this.summary = summary;
+}
+
+app.listen(PORT, () => {console.log(`App up on PORT ${PORT}`)});
+
+
